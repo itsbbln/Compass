@@ -13,6 +13,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.Locale;
+
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
     private Float azimuth_angle;
@@ -37,11 +39,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         tv_direction = findViewById(R.id.direction);
         iv_compass = findViewById(R.id.compass);
 
-        // Initialize SensorManager
+        // Initialize SensorManager, which is mao ni ang mag bali mag activate sa sensors sa device/phone
         compassSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 
         // Get the sensors
+        //measures the gravity og device tilt
         accelerometer = compassSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        //magnetic field and find magnetic north
         magnetometer = compassSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
     }
 
@@ -67,8 +71,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             magnetic_read = event.values.clone();
 
         if (accel_read != null && magnetic_read != null) {
-            float[] R = new float[9];
-            float[] I = new float[9];
+            float[] R = new float[9]; //R Rotation Matrix
+            float[] I = new float[9]; //I Inclination
             boolean successful_read = SensorManager.getRotationMatrix(R, I, accel_read, magnetic_read);
 
             if (successful_read) {
@@ -79,41 +83,59 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 float degrees = (float) Math.toDegrees(azimuth_angle);
                 degrees = (degrees + 360) % 360; // Normalize 0–360°
 
-                // Determine direction
+                // Direction logic with 0° for N, E, S, W
                 String direction;
-                if (degrees >= 337.5 || degrees < 22.5)
-                    direction = "North";
-                else if (degrees >= 22.5 && degrees < 67.5)
-                    direction = "Northeast";
-                else if (degrees >= 67.5 && degrees < 112.5)
-                    direction = "East";
-                else if (degrees >= 112.5 && degrees < 157.5)
-                    direction = "Southeast";
-                else if (degrees >= 157.5 && degrees < 202.5)
-                    direction = "South";
-                else if (degrees >= 202.5 && degrees < 247.5)
-                    direction = "Southwest";
-                else if (degrees >= 247.5 && degrees < 292.5)
-                    direction = "West";
-                else
-                    direction = "Northwest";
+                float displayDegrees;
+                float tolerance = 1.0f;
 
-                // Update TextViews separately
+                if (Math.abs(degrees - 0) <= tolerance || Math.abs(degrees - 360) <= tolerance) {
+                    direction = "N";
+                    displayDegrees = 0f;
+                } else if (Math.abs(degrees - 90) <= tolerance) {
+                    direction = "E";
+                    displayDegrees = 0f;
+                } else if (Math.abs(degrees - 180) <= tolerance) {
+                    direction = "S";
+                    displayDegrees = 0f;
+                } else if (Math.abs(degrees - 270) <= tolerance) {
+                    direction = "W";
+                    displayDegrees = 0f;
+                } else if (degrees > tolerance && degrees < 90 - tolerance) {
+                    direction = "NE";
+                    displayDegrees = degrees;
+                } else if (degrees > 90 + tolerance && degrees < 180 - tolerance) {
+                    direction = "SE";
+                    displayDegrees = 180 - degrees;
+                } else if (degrees > 180 + tolerance && degrees < 270 - tolerance) {
+                    direction = "SW";
+                    displayDegrees = degrees - 180;
+                } else {
+                    direction = "NW";
+                    displayDegrees = 360 - degrees;
+                }
+
+                // Clamp display degrees between 1° and 89° for diagonals
+                if (!direction.equals("N") && !direction.equals("E") &&
+                        !direction.equals("S") && !direction.equals("W")) {
+                    displayDegrees = Math.max(1, Math.min(89, displayDegrees));
+                }
+
+                // Update text
                 tv_direction.setText(direction);
-                tv_degrees.setText(String.format("%d°", Math.round(degrees)));
+                tv_degrees.setText(String.format(Locale.getDefault(), "%.0f°", displayDegrees));
 
                 // Rotate compass image
                 RotateAnimation rotate = new RotateAnimation(
                         current_degree,
-                        -Math.round(degrees),
+                        -degrees,
                         Animation.RELATIVE_TO_SELF, 0.5f,
                         Animation.RELATIVE_TO_SELF, 0.5f
                 );
 
-                rotate.setDuration(100);
+                rotate.setDuration(250);
                 rotate.setFillAfter(true);
                 iv_compass.startAnimation(rotate);
-                current_degree = -Math.round(degrees);
+                current_degree = -degrees;
             }
         }
     }
